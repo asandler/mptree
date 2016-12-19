@@ -206,17 +206,9 @@ case ARGV[0]
                 FileUtils.mv(file, new_file)
             end
         end
-
-        3.times do
-            Dir.glob('**/*').each do |entry|
-                if File.directory? Dir.getwd + '/' + entry
-                    FileUtils.rmdir entry
-                end
-            end
-        end
     end
 
-    when "clear" then begin
+    when "parse", "recursive_parse", "mix", "clear" then begin
         3.times do
             Dir.glob('**/*').each do |entry|
                 if File.directory? Dir.getwd + '/' + entry
