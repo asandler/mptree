@@ -48,6 +48,7 @@ Place "mptree" script somewhere, where $PATH environment variable points, and wa
 3) mptree mix
 
    converts parsed directories into mixed list of form "artist - title.mp3":
+   
         Nirvana - Come As You Are.mp3
         Nirvana - Lithium.mp3
         Nirvana - Polly.mp3    
