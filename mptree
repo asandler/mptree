@@ -1,0 +1,228 @@
+#!/usr/bin/env ruby
+# encoding: utf-8
+
+require 'fileutils'
+require 'find'
+
+def FileTail (file, offset)
+    f = File.new(file)
+    f.seek(-offset, IO::SEEK_END)
+    f.read
+end
+
+def ar2str a
+    result = ""
+    a.each do |i|
+        result += i.chr if (32..127).include?(i)
+        result += (i + 848).chr(Encoding::UTF_8) if (129..255).include?(i)
+    end
+    result.gsub!(/[^' '-~а-яА-Я&!]/, '')
+    result.strip
+end
+
+def ID3v1 file, is_debug
+    answer = {"title" => "", "artist" => "", "album" => "", "year" => "", "track" => ""}
+
+    (124..130).each do |size|
+        a = FileTail(file, size).unpack "A3C90A4A28C3" #[tag, title, artist, album, year, comment, genre]
+
+        if a[0] == "TAG"
+            title = ar2str a[1..30]
+            artist = ar2str a[31..60]
+            album = ar2str a[61..90]
+
+            a = a[0..0] + a[91..-1]
+
+            year = a[1].to_s
+            track = a[-2].to_s
+            track = '0' + track if track.length == 1
+
+            answer = {"title" => title, "artist" => artist, "album" => album, "year" => year, "track" => track}
+
+            puts file + ': ' + size.to_s + ': ' + answer.to_s if is_debug
+
+            return answer
+        end
+    end
+
+    return answer
+end
+
+def ID3v2 file, is_debug
+    ans = {"title" => "", "artist" => "", "album" => "", "year" => "", "track" => ""}
+
+    f = File.open(file)
+    a = f.read(10).unpack("A3C7")
+
+    return ans if a[0] != "ID3"
+
+    taglength_s = ""
+    (4..7).each do |i|
+        temp = a[i].to_s(2)
+        taglength_s += '0' * (7 - temp.length) + temp
+    end
+    taglength = taglength_s.to_i(2)
+
+    puts file + ': ' + taglength.to_s + ': ' + a.to_s if is_debug
+
+    while f.pos < taglength
+        a = f.read(10).unpack("A4C6")
+        framelength = (a[1].to_s(2) + a[2].to_s(2) + a[3].to_s(2) + a[4].to_s(2)).to_i(2)
+        begin
+            t = f.read(framelength)
+
+            if ARGV[1] == "debug" and t.size < 100 and framelength > 0
+                puts ARGV[0] + ': ' + taglength.to_s + ': ' + a.to_s
+                puts t
+            end
+
+            if ["TIT2", "TPE1", "TPE2", "TRCK", "TALB", "TYER"].include? a[0]
+                res = ""
+                t.each_char{ |c| res += c if c >= ' ' and c <= 'z' }
+                res.strip!
+
+                case a[0]
+                    when "TIT2" then ans["title"] = res
+                    when "TPE1", "TPE2" then ans["artist"] = res
+                    when "TYER" then ans["year"] = res
+                    when "TALB" then ans["album"] = res
+                    when "TRCK" then begin
+                        res = res[0..res.index("/") - 1] if res.index("/")
+                        res = "0" + res if res.length == 1
+                        ans["track"] = res
+                    end
+            end
+        end
+        rescue RangeError
+        end
+    end
+
+    return ans
+end
+
+def parse file, is_debug
+    tagV1 = ID3v1(file, is_debug)
+    tagV2 = ID3v2(file, is_debug)
+
+    if is_debug
+        p tagV1
+        p tagV2
+    end
+
+    result = {}
+
+    ["title", "artist", "album", "year", "track"].each do |s|
+        if tagV1[s] != "" and tagV2[s] != ""
+
+            if tagV1[s].index(tagV2[s])
+                result[s] = tagV1[s]
+            elsif tagV2[s].index(tagV1[s])
+                result[s] = tagV2[s]
+            else
+                i = -1
+                i = 1 if s == "track" and tagV1[s] != "00" and tagV2[s] == "00"
+                i = 2 if s == "track" and tagV1[s] == "00" and tagV2[s] != "00"
+
+                if i == -1
+                    print "Two variants for " + s + ": " + tagV1[s] + "/" + tagV2[s] + ". Which to use? (1 or 2, or 0 for none): "
+
+                    choise = $stdin.gets.chomp
+                    while not ["0", "1", "2"].include? choise do
+                        print "Two variants for " + s + ": " + tagV1[s] + "/" + tagV2[s] + ". Which to use? (1 or 2, or 0 for none): "
+                        choise = $stdin.gets.chomp
+                    end
+                end
+
+                result[s] = tagV1[s] if choise == "1"
+                result[s] = tagV2[s] if choise == "2"
+                result[s] = "" if choise == "0"
+            end
+
+        elsif tagV1[s] != ""
+            result[s] = tagV1[s]
+        elsif tagV2[s] != ""
+            result[s] = tagV2[s]
+        end
+    end
+
+    return result
+end
+
+def relocate file, is_debug
+    parse_result = parse(file, is_debug)
+
+    if parse_result["artist"] and parse_result["title"]
+        title = parse_result["title"] + ".mp3"
+        title = parse_result["track"] + " - " + file if parse_result["track"]
+        title.gsub!('/', '_')
+
+        artist = parse_result["artist"].gsub('/', '_')
+        
+        album = ""
+        if parse_result["album"] and parse_result["year"]
+            album = parse_result["year"] + " - " + parse_result["album"]
+        elsif parse_result["album"]
+            album = parse_result["album"]
+        elsif parse_result["year"]
+            album = parse_result["year"]
+        end
+        album.gsub!('/', '_')
+
+        if not is_debug
+            FileUtils.mkdir_p(artist + '/' + album)
+            FileUtils.mv(file, artist + '/' + album + '/' + title)
+        end
+    else
+        puts file + ": No ID3 information" if not is_debug
+    end
+end
+
+case ARGV[0]
+    when "parse" then begin
+        Dir.glob("**/*").each do |file|
+            file_type = IO.popen(["file", file], in: :close, err: :close).read.chomp
+            if file_type.index("Audio") or file_type.index("MPEG")
+                relocate(file, false)
+            end
+        end
+    end
+
+    when "recursive_parse" then begin
+        Find.find('.') do |file|
+            file_type = IO.popen(["file", file], in: :close, err: :close).read.chomp
+            if file_type.index("Audio") or file_type.index("MPEG")
+                relocate(file, false)
+            end
+        end
+    end
+
+    when "mix" then begin
+        Find.find('.') do |file|
+            next if file.split('/').size > 4
+
+            file_type = IO.popen(["file", file], in: :close, err: :close).read.chomp
+            if file_type.index("Audio") or file_type.index("MPEG")
+                new_file = './' + file.split('/')[1] + ' - ' + file.split('/')[-1].split(' - ')[-1]
+                FileUtils.mv(file, new_file)
+            end
+        end
+
+        3.times do
+            Dir.glob('**/*').each do |entry|
+                if File.directory? Dir.getwd + '/' + entry
+                    FileUtils.rmdir entry
+                end
+            end
+        end
+    end
+
+    when "clear" then begin
+        3.times do
+            Dir.glob('**/*').each do |entry|
+                if File.directory? Dir.getwd + '/' + entry
+                    FileUtils.rmdir entry
+                end
+            end
+        end
+    end
+end
