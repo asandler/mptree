@@ -124,18 +124,16 @@ def parse file, is_debug
                 i = 2 if s == "track" and tagV1[s] == "00" and tagV2[s] != "00"
 
                 if i == -1
-                    print "Two variants for " + s + ": " + tagV1[s] + "/" + tagV2[s] + ". Which to use? (1 or 2, or 0 for none): "
-
-                    choise = $stdin.gets.chomp
-                    while not ["0", "1", "2"].include? choise do
+                    choice = "none"
+                    while not ["0", "1", "2"].include? choice do
                         print "Two variants for " + s + ": " + tagV1[s] + "/" + tagV2[s] + ". Which to use? (1 or 2, or 0 for none): "
-                        choise = $stdin.gets.chomp
+                        choice = $stdin.gets.chomp
                     end
                 end
 
-                result[s] = tagV1[s] if choise == "1"
-                result[s] = tagV2[s] if choise == "2"
-                result[s] = "" if choise == "0"
+                result[s] = tagV1[s] if choice == "1"
+                result[s] = tagV2[s] if choice == "2"
+                result[s] = "" if choice == "0"
             end
 
         elsif tagV1[s] != ""
