@@ -151,7 +151,7 @@ def relocate file, is_debug
 
     if parse_result["artist"] and parse_result["title"]
         title = parse_result["title"] + ".mp3"
-        title = parse_result["track"] + " - " + file if parse_result["track"]
+        title = parse_result["track"] + " - " + title if parse_result["track"]
         title.gsub!('/', '_')
 
         artist = parse_result["artist"].gsub('/', '_')
