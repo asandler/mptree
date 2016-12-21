@@ -168,7 +168,12 @@ def relocate file, is_debug
 
         if not is_debug
             FileUtils.mkdir_p(artist + '/' + album)
-            FileUtils.mv(file, artist + '/' + album + '/' + title)
+            
+            dest = artist + '/'
+            dest += album + '/' if album != ""
+            dest += title
+
+            FileUtils.mv(file, dest) if file != dest
         end
     else
         puts file + ": No ID3 information" if not is_debug
