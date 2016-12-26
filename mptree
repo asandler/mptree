@@ -168,7 +168,7 @@ def relocate file, is_debug
 
         if not is_debug
             FileUtils.mkdir_p(artist + '/' + album)
-            
+
             dest = artist + '/'
             dest += album + '/' if album != ""
             dest += title
@@ -199,9 +199,21 @@ case ARGV[0]
         end
     end
 
+    when "list" then begin
+        Find.find('.') do |file|
+            next if file.split('/').size > 4
+            next if File.directory? file
+
+            file_type = IO.popen(["file", file], in: :close, err: :close).read.chomp
+            new_file = './' + file.split('/')[-1].split(' - ')[-1]
+            FileUtils.mv(file, new_file) if file != new_file
+        end
+    end
+
     when "mix" then begin
         Find.find('.') do |file|
             next if file.split('/').size > 4
+            next if File.directory? file
 
             file_type = IO.popen(["file", file], in: :close, err: :close).read.chomp
             if file_type.index("Audio") or file_type.index("MPEG")
@@ -210,13 +222,13 @@ case ARGV[0]
             end
         end
     end
+end
 
-    when "parse", "recursive_parse", "mix", "clear" then begin
-        3.times do
-            Dir.glob('**/*').each do |entry|
-                if File.directory? Dir.getwd + '/' + entry
-                    FileUtils.rmdir entry
-                end
+if ["parse", "recursive_parse", "list", "mix", "clear"].include? ARGV[0] then
+    3.times do
+        Dir.glob('**/*').each do |entry|
+            if File.directory? Dir.getwd + '/' + entry
+                FileUtils.rmdir entry
             end
         end
     end
