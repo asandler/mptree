@@ -62,6 +62,9 @@ Place "mptree" script somewhere, where $PATH environment variable points, and wa
         The Cure - Secrets.mp3
         The Cure - In Your House.mp3
 
-4) mptree clear
+4) mptree list
+     Does the same but doesn't add artists in the file name, just creates a plain list of songs.
 
-   deletes all empty directories (automatically runs after each task mentioned above)
+5) mptree clear
+
+   deletes all empty directories (automatically runs after each type of task)
