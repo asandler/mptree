@@ -1,9 +1,10 @@
 # mptree
-Tool for managing mp3 files in music directory. Use it with care
+Tool for managing mp3 files in music directory. Use it with care.
 
 Place "mptree" script somewhere, where $PATH environment variable points, and watch the magic:
 
 1) mptree parse
+
    takes all mess of musical files in current directory, for example:
    
      All's Quiet On The Eastern Fron.mp3
