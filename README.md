@@ -44,7 +44,7 @@ Place "mptree" script somewhere, where $PATH environment variable points, and wa
 
 2) mptree "recursive_parse"
 
-  the same as "parse" but applied to all mp3 files in current directory and all subdirectories recursively
+   the same as "parse" but applied to all mp3 files in current directory and all subdirectories recursively
 
 3) mptree mix
 
@@ -64,7 +64,8 @@ Place "mptree" script somewhere, where $PATH environment variable points, and wa
         The Cure - In Your House.mp3
 
 4) mptree list
-     Does the same but doesn't add artists in the file name, just creates a plain list of songs.
+
+   Does the same but doesn't add artists in the file name, just creates a plain list of songs.
 
 5) mptree clear
 
