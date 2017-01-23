@@ -5,9 +5,13 @@ require 'fileutils'
 require 'find'
 
 def FileTail (file, offset)
-    f = File.new(file)
-    f.seek(-offset, IO::SEEK_END)
-    f.read
+    begin
+        f = File.new(file)
+        f.seek(-offset, IO::SEEK_END)
+        f.read
+    rescue Errno::EISDIR
+        "sample text"
+    end
 end
 
 def ar2str a
@@ -51,8 +55,12 @@ end
 def ID3v2 file, is_debug
     ans = {"title" => "", "artist" => "", "album" => "", "year" => "", "track" => ""}
 
-    f = File.open(file)
-    a = f.read(10).unpack("A3C7")
+    begin
+        f = File.open(file)
+        a = f.read(10).unpack("A3C7")
+    rescue Errno::EISDIR
+        return ans
+    end
 
     return ans if a[0] != "ID3"
 
@@ -71,7 +79,7 @@ def ID3v2 file, is_debug
         begin
             t = f.read(framelength)
 
-            if ARGV[1] == "debug" and t.size < 100 and framelength > 0
+            if is_debug and t.size < 100 and framelength > 0
                 puts ARGV[0] + ': ' + taglength.to_s + ': ' + a.to_s
                 puts t
             end
@@ -87,20 +95,21 @@ def ID3v2 file, is_debug
                     when "TYER" then ans["year"] = res
                     when "TALB" then ans["album"] = res
                     when "TRCK" then begin
-                        res = res[0..res.index("/") - 1] if res.index("/")
+                        res = res[0..res.index("/") - 1] if res.include?("/")
                         res = "0" + res if res.length == 1
                         ans["track"] = res
                     end
             end
         end
         rescue RangeError
+        rescue NoMemoryError
         end
     end
 
     return ans
 end
 
-def parse file, is_debug
+def parse file, default_choice, is_debug
     tagV1 = ID3v1(file, is_debug)
     tagV2 = ID3v2(file, is_debug)
 
@@ -114,17 +123,23 @@ def parse file, is_debug
     ["title", "artist", "album", "year", "track"].each do |s|
         if tagV1[s] != "" and tagV2[s] != ""
 
-            if tagV1[s].index(tagV2[s])
+            if tagV1[s].include?(tagV2[s])
                 result[s] = tagV1[s]
-            elsif tagV2[s].index(tagV1[s])
+            elsif tagV2[s].include?(tagV1[s])
                 result[s] = tagV2[s]
             else
-                i = -1
-                i = 1 if s == "track" and tagV1[s] != "00" and tagV2[s] == "00"
-                i = 2 if s == "track" and tagV1[s] == "00" and tagV2[s] != "00"
+                choice = -1
+                choice = "1" if s == "track" and tagV1[s] != "00" and tagV2[s] == "00"
+                choice = "2" if s == "track" and tagV1[s] == "00" and tagV2[s] != "00"
 
-                if i == -1
-                    choice = "none"
+                tag1IsVarious = (tagV1[s].include?("Various") or (tagV1[s].include?("various")))
+                tag2IsVarious = (tagV2[s].include?("Various") or (tagV2[s].include?("various")))
+
+                choice = "2" if s == "artist" and tag1IsVarious and not tag2IsVarious
+                choice = "1" if s == "artist" and tag2IsVarious and not tag1IsVarious
+
+                if choice == -1
+                    choice = default_choice || "none"
                     while not ["0", "1", "2"].include? choice do
                         print "Two variants for " + s + ": " + tagV1[s] + "/" + tagV2[s] + ". Which to use? (1 or 2, or 0 for none): "
                         choice = $stdin.gets.chomp
@@ -146,8 +161,8 @@ def parse file, is_debug
     return result
 end
 
-def relocate file, is_debug
-    parse_result = parse(file, is_debug)
+def relocate file, default_choice, is_debug
+    parse_result = parse(file, default_choice, is_debug)
 
     if parse_result["artist"] and parse_result["title"]
         title = parse_result["title"] + ".mp3"
@@ -167,69 +182,92 @@ def relocate file, is_debug
         album.gsub!('/', '_')
 
         if not is_debug
-            FileUtils.mkdir_p(artist + '/' + album)
+            begin
+                FileUtils.mkdir_p(artist + '/' + album)
 
-            dest = artist + '/'
-            dest += album + '/' if album != ""
-            dest += title
+                dest = artist + '/'
+                dest += album + '/' if album != ""
+                dest += title
 
-            FileUtils.mv(file, dest) if file != dest
+                FileUtils.mv(file, dest) if file != dest
+            rescue ArgumentError
+            end
         end
     else
         puts file + ": No ID3 information" if not is_debug
     end
 end
 
-case ARGV[0]
+a = ARGV.clone.keep_if{|s| s.include?("default=") }
+default_choice = ((a.any?) ? a[0].split('=')[1] : nil)
+
+available_modes = ["parse", "recursive_parse", "list", "mix", "clear"]
+a = ARGV.clone.keep_if{|s| available_modes.include? s }
+exit if a.empty?
+mode = a[0]
+
+is_debug = ARGV.include?("debug")
+
+case mode
     when "parse" then begin
-        Dir.glob("**/*").each do |file|
-            file_type = IO.popen(["file", file], in: :close, err: :close).read.chomp
-            if file_type.index("Audio") or file_type.index("MPEG")
-                relocate(file, false)
+        Dir.glob("*").each do |file|
+            begin
+                file_type = IO.popen(["file", file], in: :close, err: :close).read.chomp
+                if file_type.include?("Audio") or file_type.include?("MPEG")
+                    relocate(file, default_choice, is_debug)
+                end
+            rescue Encoding::CompatibilityError
             end
         end
     end
 
     when "recursive_parse" then begin
         Find.find('.') do |file|
-            file_type = IO.popen(["file", file], in: :close, err: :close).read.chomp
-            if file_type.index("Audio") or file_type.index("MPEG")
-                relocate(file, false)
+            begin
+                file_type = IO.popen(["file", file], in: :close, err: :close).read.chomp
+                if file_type.include?("Audio") or file_type.include?("MPEG")
+                    relocate(file, default_choice, is_debug)
+                end
+            rescue Encoding::CompatibilityError
             end
         end
     end
 
     when "list" then begin
         Find.find('.') do |file|
-            next if file.split('/').size > 4
-            next if File.directory? file
+            begin
+                next if file.split('/').size > 4
+                next if File.directory? file
 
-            file_type = IO.popen(["file", file], in: :close, err: :close).read.chomp
-            new_file = './' + file.split('/')[-1].split(' - ')[-1]
-            FileUtils.mv(file, new_file) if file != new_file
+                file_type = IO.popen(["file", file], in: :close, err: :close).read.chomp
+                new_file = './' + file.split('/')[-1].split(' - ')[-1]
+                FileUtils.mv(file, new_file) if file != new_file
+            rescue Encoding::CompatibilityError
+            end
         end
     end
 
     when "mix" then begin
         Find.find('.') do |file|
-            next if file.split('/').size > 4
-            next if File.directory? file
+            begin
+                next if file.split('/').size > 4
+                next if File.directory? file
 
-            file_type = IO.popen(["file", file], in: :close, err: :close).read.chomp
-            if file_type.index("Audio") or file_type.index("MPEG")
-                new_file = './' + file.split('/')[1] + ' - ' + file.split('/')[-1].split(' - ')[-1]
-                FileUtils.mv(file, new_file)
+                file_type = IO.popen(["file", file], in: :close, err: :close).read.chomp
+                if file_type.include?("Audio") or file_type.include?("MPEG")
+                    new_file = './' + file.split('/')[1] + ' - ' + file.split('/')[-1].split(' - ')[-1]
+                    FileUtils.mv(file, new_file)
+                end
+            rescue Encoding::CompatibilityError
             end
         end
     end
 end
 
-if ["parse", "recursive_parse", "list", "mix", "clear"].include? ARGV[0] then
-    3.times do
-        Dir.glob('**/*').each do |entry|
-            if File.directory? Dir.getwd + '/' + entry
-                FileUtils.rmdir entry
-            end
+3.times do
+    Dir.glob('**/*').each do |entry|
+        if File.directory? Dir.getwd + '/' + entry
+            FileUtils.rmdir entry
         end
     end
 end
