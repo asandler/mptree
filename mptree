@@ -10,7 +10,7 @@ def FileTail (file, offset)
         f.seek(-offset, IO::SEEK_END)
         f.read
     rescue Errno::EISDIR
-        "sample text"
+        ""
     end
 end
 
