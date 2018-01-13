@@ -5,7 +5,7 @@ Place "mptree" script somewhere, where $PATH environment variable points, and wa
 
 1) mptree parse
 
-   takes all mess of musical files in current directory, for example:
+   takes all the mess of musical files in the current directory, for example:
 
 ```
      All's Quiet On The Eastern Fron.mp3
@@ -22,7 +22,7 @@ Place "mptree" script somewhere, where $PATH environment variable points, and wa
      10 - Come On Now.mp3
 ```
 
-   and tries to extract ID3 tags from them and move to nice-looking directories like this:
+   extracts ID3 tags and sorts the mp3 files into the nice-looking directories, like this:
 
 ```   
      ./Nirvana/1991 - Nevermind:
@@ -48,16 +48,16 @@ Place "mptree" script somewhere, where $PATH environment variable points, and wa
 
 2) mptree "recursive_parse"
 
-   the same as "parse" but applied to all mp3 files in current directory and all subdirectories recursively
+   the same as "parse" but applied to all mp3 files in all subdirectories (including the current directory) recursively
 
 3) mptree mix
 
-   converts parsed directories into mixed list of form "artist - title.mp3":
+   converts parsed directories into the mixed list of the form "artist - title.mp3":
 ```   
         Nirvana - Come As You Are.mp3
         Nirvana - Lithium.mp3
         Nirvana - Polly.mp3    
-        Ramones - All's Quiet On The Eastern Fron.mp3
+        Ramones - All's Quiet On The Eastern Front.mp3
         Ramones - She's A Sensation.mp3
         Ramones - Come On Now.mp3
         R.E.M. - Perfect Circle.mp3
@@ -70,7 +70,7 @@ Place "mptree" script somewhere, where $PATH environment variable points, and wa
 
 4) mptree list
 
-   Does the same but doesn't add artists in the file name, just creates a plain list of songs.
+   The same as "mix" but doesn't add artists in the file name, just creates a plain list of songs.
 
 5) mptree clear
 
